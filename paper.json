@@ -5,6 +5,7 @@
   ],
   "oneSentenceClaim": "Solar-thermal propulsion — sunlight concentrated onto a 3D-printed heat exchanger that heats cheap ammonia propellant — is the only architecture that delivers both chemical-class thrust and electric-class efficiency, making it the sole viable option for the responsive, repeatable maneuvering that 1.2 million planned orbital assets will require.",
   "source": "https://github.com/dpetkevich/explainer/blob/main/fixtures/portal-stp.md",
+  "org": "idea-explainer",
   "slug": "portal-stp",
   "audienceName": "Yale physics undergrad",
   "tool": {
