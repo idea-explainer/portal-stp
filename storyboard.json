@@ -110,7 +110,8 @@
       "physicsChecks": [
         "Budget bar decreases by exactly the commanded maneuver size each click (100, 500, or 5,000 m/s).",
         "Firing two 500 m/s maneuvers leaves the same remaining budget as firing one 1,000 m/s maneuver.",
-        "When remaining budget reaches 0 m/s, maneuver buttons are disabled and the satellite no longer moves."
+        "When remaining budget reaches 0 m/s, maneuver buttons are disabled and the satellite no longer moves.",
+        "DRILL: the budget bar displays a tick mark every 1,000 m/s."
       ]
     },
     {
