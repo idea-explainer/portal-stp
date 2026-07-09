@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "name": "Placeholder Endorser",
+    "title": "Endorsement pending",
+    "affiliation": "Portal Space Systems (to be confirmed)",
+    "link": "https://github.com/idea-explainer/portal-stp/blob/main/CONTRIBUTING.md",
+    "date": "2026-07-09",
+    "note": "Placeholder demonstrating the endorsement feature \u2014 a real endorsement from the field is pending and will replace this entry."
+  }
+]
