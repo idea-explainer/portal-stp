@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The empty corner of the thrust–Isp plane</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --fg:#1b1b1b; --muted:#6b6b6b; --grid:#c9c9c4;
+    --chem:#c0392b; --chem-fill:rgba(192,57,43,0.18);
+    --elec:#2464b4; --shade:rgba(90,90,90,0.16); --shade-fg:#555;
+    --panel:#ffffff; --border:#d6d6d0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#15171a; --fg:#e9e9e6; --muted:#a3a7ad; --grid:#3a3d42;
+      --chem:#ff6b5a; --chem-fill:rgba(255,107,90,0.20);
+      --elec:#5aa2ff; --shade:rgba(200,200,200,0.10); --shade-fg:#bfbfbf;
+      --panel:#1d2024; --border:#33363b;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{max-width:680px;margin:0 auto;padding:12px 14px 18px;}
+  h2{font-size:15px;margin:4px 0 10px;font-weight:600;}
+  canvas{max-width:100%;height:auto;display:block;background:var(--panel);
+    border:1px solid var(--border);border-radius:4px;}
+  .controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:10px 0 6px;font-size:13px;}
+  .controls label{display:flex;flex-direction:column;gap:3px;flex:1 1 220px;}
+  input[type=range]{width:100%;}
+  .readouts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;margin:6px 0 4px;}
+  .readouts b{color:var(--fg);}
+  .readouts span.lbl{color:var(--muted);}
+  .eqs{margin-top:14px;font-size:14px;}
+  .legend{color:var(--muted);font-size:11.5px;margin:2px 0 12px;line-height:1.4;}
+  math{font-size:15px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>Thrust vs. specific impulse: two propulsion families, two corners</h2>
+  <canvas id="cv" width="640" height="380" role="img"
+    aria-label="Log-log plot of thrust versus specific impulse showing chemical and electric propulsion markers"></canvas>
+
+  <div class="controls">
+    <label>Panel electrical power P: <b id="pLabel">10.0 kW</b>
+      <input id="pSlider" type="range" min="1000" max="30000" step="100" value="10000">
+    </label>
+    <button id="playBtn" style="display:none;">▶ animate</button>
+  </div>
+
+  <div class="readouts">
+    <span><span class="lbl">Electric thrust F:</span> <b id="fOut">0.67 N</b></span>
+    <span><span class="lbl">Exhaust velocity v<sub></sub>e:</span> <b id="veOut">15.0 km/s</b></span>
+    <span><span class="lbl">Burn time for Δv=100 m/s:</span> <b id="tOut">125.0 h</b></span>
+  </div>
+
+  <div class="eqs">
+    <math display="block">
+      <msub><mi>v</mi><mtext>e</mtext></msub><mo>=</mo>
+      <msub><mi>I</mi><mtext>sp</mtext></msub><mo>·</mo><msub><mi>g</mi><mn>0</mn></msub>
+    </math>
+    <div class="legend">v<sub>e</sub> — effective exhaust velocity (m/s) · I<sub>sp</sub> — specific impulse (s) · g<sub>0</sub> — standard gravity, 9.81 m/s²</div>
+
+    <math display="block">
+      <mi>F</mi><mo>=</mo>
+      <mfrac><mrow><mn>2</mn><mi>η</mi><mi>P</mi></mrow><msub><mi>v</mi><mtext>e</mtext></msub></mfrac>
+    </math>
+    <div class="legend">F — thrust (N) · η — jet efficiency (dimensionless, here 0.5) · P — electrical power into the thruster (W) · v<sub>e</sub> — exhaust velocity (m/s)</div>
+
+    <math display="block">
+      <mi>t</mi><mo>=</mo>
+      <mfrac><mrow><mi>M</mi><mo>·</mo><mi>Δv</mi></mrow><mi>F</mi></mfrac>
+    </math>
+    <div class="legend">t — burn time (s) · M — spacecraft mass, taken as 3,000 kg · Δv — velocity change, 100 m/s · F — thrust (N)</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const G0 = 9.81;          // m/s^2
+  const ETA = 0.5;          // jet efficiency, dimensionless
+  const VE_ELEC = 15000;    // m/s, electric-thruster exhaust velocity
+  const ISP_ELEC = VE_ELEC / G0;   // s, derived — displayed as marker x-position
+  const M_SC = 3000;        // kg, assumed spacecraft mass
+  const DV = 100;           // m/s
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  const W = cv.width, H = cv.height;
+  const padL = 58, padR = 16, padT = 20, padB = 42;
+  const ispMin = 100, ispMax = 2000;      // s
+  const thrMin = 0.001, thrMax = 1000;    // N
+
+  function xPix(isp){
+    const f = (Math.log10(isp)-Math.log10(ispMin)) / (Math.log10(ispMax)-Math.log10(ispMin));
+    return padL + f*(W-padL-padR);
+  }
+  function yPix(thr){
+    const f = (Math.log10(thr)-Math.log10(thrMin)) / (Math.log10(thrMax)-Math.log10(thrMin));
+    return H-padB - f*(H-padB-padT);
+  }
+
+  let elecYcur = null, elecYtarget = null;
+
+  function computeF(P){ return (2*ETA*P)/VE_ELEC; }
+
+  function draw(){
+    const bg = cssVar('--panel'), fg = cssVar('--fg'), muted = cssVar('--muted');
+    const grid = cssVar('--grid'), chem = cssVar('--chem'), chemFill = cssVar('--chem-fill');
+    const elec = cssVar('--elec'), shade = cssVar('--shade'), shadeFg = cssVar('--shade-fg');
+
+    ctx.clearRect(0,0,W,H);
+
+    // shaded empty corner
+    const sx0 = xPix(600), sx1 = xPix(ispMax);
+    const sy0 = yPix(1000), sy1 = yPix(100);
+    ctx.fillStyle = shade;
+    ctx.fillRect(sx0, sy0, sx1-sx0, sy1-sy0);
+    ctx.fillStyle = shadeFg;
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('empty for 50 years', (sx0+sx1)/2, sy0+14);
+
+    // grid + ticks
+    ctx.strokeStyle = grid; ctx.fillStyle = muted; ctx.font = '10px sans-serif';
+    ctx.lineWidth = 1;
+    [100,200,500,1000,2000].forEach(v=>{
+      const x = xPix(v);
+      ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,H-padB); ctx.stroke();
+      ctx.textAlign='center'; ctx.fillText(v.toLocaleString(), x, H-padB+14);
+    });
+    [0.001,0.01,0.1,1,10,100,1000].forEach(v=>{
+      const y = yPix(v);
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+      ctx.textAlign='right';
+      const lbl = v>=1 ? v.toLocaleString() : (v*1000)+'m';
+      ctx.fillText(lbl, padL-6, y+3);
+    });
+
+    // axis titles
+    ctx.fillStyle = fg; ctx.font = '11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('Specific impulse, Isp (s) — log scale', (padL+W-padR)/2, H-8);
+    ctx.save();
+    ctx.translate(14, (padT+H-padB)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('Thrust, F (N) — log scale', 0, 0);
+    ctx.restore();
+
+    // chemical band
+    const cx0=xPix(180), cx1=xPix(330), cy0=yPix(400), cy1=yPix(100);
+    ctx.fillStyle = chemFill;
+    ctx.fillRect(cx0, cy0, cx1-cx0, cy1-cy0);
+    ctx.strokeStyle = chem;
+    ctx.strokeRect(cx0, cy0, cx1-cx0, cy1-cy0);
+    ctx.fillStyle = chem;
+    const chx = xPix(250), chy = yPix(250);
+    ctx.beginPath(); ctx.arc(chx, chy, 5, 0, 7); ctx.fill();
+    ctx.textAlign='left'; ctx.font='11px sans-serif';
+    ctx.fillText('storable chemical', chx+8, chy-6);
+
+    // electric marker (animated y)
+    if (elecYcur===null) elecYcur = elecYtarget;
+    const ex = xPix(ISP_ELEC);
+    ctx.fillStyle = elec;
+    ctx.beginPath(); ctx.arc(ex, elecYcur, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = elec; ctx.font='11px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('Hall thruster', ex+8, elecYcur+4);
+
+    // 100 N reference line
+    const y100 = yPix(100);
+    ctx.strokeStyle = muted; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(padL,y100); ctx.lineTo(W-padR,y100); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function updateReadouts(P, F){
+    document.getElementById('pLabel').textContent = (P/1000).toFixed(1)+' kW';
+    document.getElementById('fOut').textContent = F.toFixed(2)+' N';
+    document.getElementById('veOut').textContent = (VE_ELEC/1000).toFixed(1)+' km/s';
+    const t = (M_SC*DV)/F; // seconds
+    document.getElementById('tOut').textContent = (t/3600).toFixed(1)+' h';
+  }
+
+  const slider = document.getElementById('pSlider');
+  function onSlider(){
+    const P = parseFloat(slider.value);
+    const F = computeF(P);
+    elecYtarget = yPix(Math.max(F, thrMin));
+    updateReadouts(P, F);
+    if (reduce){ elecYcur = elecYtarget; draw(); }
+    else startAnim();
+  }
+  slider.addEventListener('input', onSlider);
+
+  let animRunning = false;
+  function startAnim(){
+    if (animRunning) return;
+    animRunning = true;
+    function step(){
+      if (elecYcur===null){ elecYcur = elecYtarget; }
+      const diff = elecYtarget - elecYcur;
+      if (Math.abs(diff) < 0.3){
+        elecYcur = elecYtarget;
+        draw();
+        animRunning = false;
+        return;
+      }
+      elecYcur += diff*0.18;
+      draw();
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // init
+  const P0 = parseFloat(slider.value);
+  const F0 = computeF(P0);
+  elecYtarget = yPix(F0);
+  elecYcur = elecYtarget;
+  updateReadouts(P0, F0);
+  draw();
+
+  window.__sceneReady = true;
+
+  const __ro = new ResizeObserver(() => {
+    parent.postMessage({ explainItScene: "thrust-isp-plane", height: document.documentElement.scrollHeight }, "*");
+  });
+  __ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>

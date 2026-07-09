@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solar-thermal thrust vs. Hall and chemical</title>
+<style>
+  :root{
+    --bg:#f7f6f3;
+    --panel:#ffffff;
+    --fg:#1a1a1a;
+    --muted:#666666;
+    --grid:#cfcfcf;
+    --hall:#c0463f;
+    --chem:#3a8ab0;
+    --solar:#d98e2b;
+    --accent:#2a7f62;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17181a;
+      --panel:#222426;
+      --fg:#eaeaea;
+      --muted:#a3a3a3;
+      --grid:#4a4a4a;
+      --hall:#ef7a72;
+      --chem:#6fc3e6;
+      --solar:#f0b45a;
+      --accent:#57d6ad;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:680px;margin:0 auto;padding:12px 14px 18px;}
+  h2{font-size:16px;margin:4px 0 10px;font-weight:600;}
+  .panel{background:var(--panel);border-radius:10px;padding:12px 14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);}
+  svg{max-width:100%;height:auto;display:block;}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0;}
+  label{font-size:13px;}
+  input[type=range]{width:220px;vertical-align:middle;max-width:100%;}
+  button{font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid var(--grid);
+    background:var(--panel);color:var(--fg);cursor:pointer;}
+  .readouts{display:flex;flex-wrap:wrap;gap:18px;margin-top:8px;font-size:14px;}
+  .readouts b{color:var(--accent);}
+  .small{font-size:11.5px;color:var(--muted);line-height:1.4;margin:4px 0 0;}
+  math{font-size:16px;}
+  .eqbox{margin-top:14px;}
+  .barlabel{font-size:12px;fill:var(--fg);}
+  .ticklabel{font-size:10.5px;fill:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>Thrust: solar-thermal vs. Hall vs. chemical (log scale)</h2>
+  <div class="panel">
+    <svg id="chart" viewBox="0 0 600 200" role="img" aria-label="log scale thrust bar chart"></svg>
+
+    <div class="controls">
+      <label for="pSlider">Concentrated thermal power to propellant, P (kW):
+        <input id="pSlider" type="range" min="10" max="500" step="5" value="300">
+        <span id="pVal">300</span> kW
+      </label>
+    </div>
+
+    <div class="readouts">
+      <span>Solar-thermal thrust: <b id="fVal">--</b> N</span>
+      <span><b id="orderVal">--</b> orders of magnitude above Hall</span>
+    </div>
+
+    <div class="eqbox">
+      <math display="block">
+        <mi>F</mi><mo>=</mo>
+        <mfrac><mrow><mn>2</mn><mi>P</mi></mrow><msub><mi>v</mi><mtext>e</mtext></msub></mfrac>
+      </math>
+      <p class="small">F — thrust (N) &middot; P — thermal jet power delivered to propellant (W) &middot;
+      v<sub>e</sub> — effective exhaust velocity, fixed at 4000 m/s for this design point.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- physical constants (visible, auditable) ----
+  const V_E = 4000;        // m/s, effective exhaust velocity of solar-thermal thruster
+  const F_HALL = 0.0015;   // N, representative low-power Hall-thruster thrust (~1.5 mN)
+  const F_CHEM_MIN = 100;  // N, storable chemical thruster low end
+  const F_CHEM_MAX = 400;  // N, storable chemical thruster high end
+
+  // ---- log-scale plot geometry ----
+  const LOG_MIN = -3, LOG_MAX = 3; // covers 0.001 N to 1000 N
+  const X0 = 100, X1 = 580;
+  const PXPERDEC = (X1 - X0) / (LOG_MAX - LOG_MIN);
+  function xFor(v){ return X0 + (Math.log10(v) - LOG_MIN) * PXPERDEC; }
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById('chart');
+
+  function el(tag, attrs){
+    const e = document.createElementNS(svgNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // static axis + ticks
+  const ticks = [0.001,0.01,0.1,1,10,100,1000];
+  const axisY = 168;
+  svg.appendChild(el('line',{x1:X0,y1:axisY,x2:X1,y2:axisY,stroke:'var(--grid)','stroke-width':1}));
+  ticks.forEach(t=>{
+    const x = xFor(t);
+    svg.appendChild(el('line',{x1:x,y1:axisY,x2:x,y2:axisY+5,stroke:'var(--grid)'}));
+    const lbl = el('text',{x:x, y:axisY+16, class:'ticklabel', 'text-anchor':'middle'});
+    lbl.textContent = t.toString();
+    svg.appendChild(lbl);
+  });
+  const axLabel = el('text',{x:(X0+X1)/2, y:axisY+32, class:'ticklabel', 'text-anchor':'middle'});
+  axLabel.textContent = 'Thrust (N), log scale';
+  svg.appendChild(axLabel);
+
+  // Hall bar (fixed)
+  const hallY = 34, barH = 22;
+  const hallW = xFor(F_HALL) - X0;
+  svg.appendChild(el('rect',{x:X0,y:hallY,width:Math.max(hallW,1),height:barH,fill:'var(--hall)',rx:3}));
+  const hallLbl = el('text',{x:X0, y:hallY-6, class:'barlabel'});
+  hallLbl.textContent = 'Hall thruster \u2014 ' + F_HALL.toFixed(4) + ' N (fixed)';
+  svg.appendChild(hallLbl);
+
+  // Chemical band (fixed, floating rectangle)
+  const chemY = 84;
+  const chemX0 = xFor(F_CHEM_MIN), chemX1 = xFor(F_CHEM_MAX);
+  svg.appendChild(el('rect',{x:chemX0,y:chemY,width:(chemX1-chemX0),height:barH,fill:'var(--chem)',rx:3}));
+  const chemLbl = el('text',{x:chemX0, y:chemY-6, class:'barlabel'});
+  chemLbl.textContent = 'Storable chemical \u2014 100\u2013400 N (fixed band)';
+  svg.appendChild(chemLbl);
+
+  // Solar-thermal bar (dynamic)
+  const solarY = 134;
+  const solarRect = el('rect',{x:X0,y:solarY,width:0,height:barH,fill:'var(--solar)',rx:3});
+  svg.appendChild(solarRect);
+  const solarLbl = el('text',{x:X0, y:solarY-6, class:'barlabel'});
+  solarLbl.id='solarLbl';
+  svg.appendChild(solarLbl);
+
+  // ---- interactivity ----
+  const slider = document.getElementById('pSlider');
+  const pValEl = document.getElementById('pVal');
+  const fValEl = document.getElementById('fVal');
+  const orderValEl = document.getElementById('orderVal');
+
+  function render(P_kW){
+    const P_watts = P_kW * 1000;
+    const F = 2 * P_watts / V_E; // N
+    const w = Math.max(0, xFor(Math.max(F,0.0005)) - X0);
+    solarRect.setAttribute('width', w.toFixed(2));
+    solarLbl.textContent = 'Solar-thermal (live) \u2014 ' + F.toFixed(1) + ' N';
+    pValEl.textContent = Math.round(P_kW);
+    fValEl.textContent = F.toFixed(1);
+    const orders = Math.log10(F / F_HALL);
+    orderValEl.textContent = orders.toFixed(1);
+  }
+
+  // The slider is the sole, direct control of thrust — no background
+  // animation ever writes to it, so a manual drag always lands where
+  // the user releases it, including at the stated 10 kW / 500 kW ends.
+  slider.addEventListener('input', ()=>{
+    render(parseFloat(slider.value));
+  });
+
+  // initial state
+  render(parseFloat(slider.value));
+
+  window.__sceneReady = true;
+
+  const __ro = new ResizeObserver(() => {
+    parent.postMessage({ explainItScene: "sunlight-thrust", height: document.documentElement.scrollHeight }, "*");
+  });
+  __ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>

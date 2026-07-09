@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hohmann Transfer: Climbing by Speeding Up</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --fg:#1b1e24; --muted:#5a6270; --panel:#ffffff;
+    --leo:#3b6fd6; --geo:#c2461e; --earth:#2e7d46; --sat:#1b1e24;
+    --arrow:#c2461e; --flame:#e8a23b; --transfer:#8a4fd6; --border:#d7dbe2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14171c; --fg:#e8eaef; --muted:#9aa2b1; --panel:#1c2028;
+      --leo:#6ea2ff; --geo:#ff8a5c; --earth:#4caf76; --sat:#e8eaef;
+      --arrow:#ff8a5c; --flame:#ffcf6b; --transfer:#c39bff; --border:#2c313b;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;}
+  .scene{max-width:680px;margin:0 auto;padding:14px 16px 18px;}
+  h2{font-size:16px;margin:0 0 10px;}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:6px 10px;min-width:120px;}
+  .stat .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .stat .val{font-size:17px;font-weight:600;}
+  canvas{display:block;max-width:100%;width:100%;height:auto;background:var(--panel);
+    border:1px solid var(--border);border-radius:10px;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  button{font:inherit;padding:7px 12px;border-radius:7px;border:1px solid var(--border);
+    background:var(--panel);color:var(--fg);cursor:pointer;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button:not(:disabled):hover{border-color:var(--leo);}
+  .eqbox{margin-top:14px;font-size:13px;}
+  .legend{color:var(--muted);font-size:12px;margin:2px 0 8px;}
+  math{font-size:15px;}
+</style>
+</head>
+<body>
+<div class="scene">
+  <h2>LEO &rarr; GEO: two prograde burns</h2>
+  <div class="stats">
+    <div class="stat"><div class="lbl">speed v (km/s)</div><div class="val" id="vRead">7.7</div></div>
+    <div class="stat"><div class="lbl">regime</div><div class="val" id="regimeRead">LEO</div></div>
+    <div class="stat"><div class="lbl">&Delta;v spent (km/s)</div><div class="val" id="dvRead">0.0</div></div>
+  </div>
+  <canvas id="cv" width="640" height="430" aria-label="Orbit diagram of Hohmann transfer"></canvas>
+  <div class="controls">
+    <button id="btn1">Burn 1 (+2.4 km/s, prograde)</button>
+    <button id="btn2" disabled>Burn 2 (+1.5 km/s, prograde)</button>
+    <button id="btnReset">Reset</button>
+    <button id="btnPlay" style="display:none">Play</button>
+  </div>
+  <div class="eqbox">
+    <math display="block">
+      <mi>v</mi><mo>=</mo>
+      <msqrt><mrow><mi>&mu;</mi><mfenced><mrow>
+        <mfrac><mn>2</mn><mi>r</mi></mfrac><mo>-</mo><mfrac><mn>1</mn><mi>a</mi></mfrac>
+      </mrow></mfenced></mrow></msqrt>
+    </math>
+    <div class="legend">v &mdash; orbital speed (km/s) &middot; &mu; &mdash; Earth's gravitational parameter, 398600 km&sup3;/s&sup2; &middot; r &mdash; distance from Earth's center at that instant (km) &middot; a &mdash; semi-major axis of the current orbit (km)</div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+// ---- physical constants (real values) ----
+const MU = 398600;        // km^3/s^2, Earth's gravitational parameter
+const R_LEO = 6778;        // km, LEO circular radius (~400 km altitude)
+const R_GEO = 42164;       // km, GEO circular radius
+const a_t = (R_LEO+R_GEO)/2;
+const e_t = (R_GEO-R_LEO)/(R_GEO+R_LEO);
+const p_t = a_t*(1-e_t*e_t);
+const v_leo = Math.sqrt(MU/R_LEO);
+const v_p   = Math.sqrt(MU*(2/R_LEO - 1/a_t));   // perigee speed of transfer ellipse
+const v_a   = Math.sqrt(MU*(2/R_GEO - 1/a_t));   // apogee speed of transfer ellipse
+const v_geo = Math.sqrt(MU/R_GEO);
+const dv1 = v_p - v_leo, dv2 = v_geo - v_a;
+
+function solveKepler(M,e){
+  let E = M + e*Math.sin(M);
+  for(let i=0;i<8;i++){
+    E -= (E - e*Math.sin(E) - M)/(1 - e*Math.cos(E));
+  }
+  return E;
+}
+
+// ---- canvas / scale ----
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const cx = 320, cy = 220;
+const R_GEO_PX = 190;
+const scale = R_GEO_PX/R_GEO;
+const R_LEO_PX = R_LEO*scale;
+const EARTH_PX = 14;
+
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+// ---- state ----
+let phase = 'leo';           // leo | burn1flame | transfer | burn2flame | geo
+let thetaLeo = -Math.PI/2;   // current angle in LEO
+let perigeeAngle = 0;
+let M = 0;                   // mean anomaly during transfer
+let thetaGeo = 0;
+let flameT = 0;
+const FLAME_DUR = 0.6;
+const TRANSFER_DUR = 6.0;    // seconds of animation representing ~5.3 h coast
+const OMEGA_LEO = 0.9;       // rad/s, visual pace (schematic, not real-time)
+const OMEGA_GEO = OMEGA_LEO*Math.pow(R_LEO/R_GEO,1.5); // physically-scaled ratio
+
+let dvSpent = 0;
+let playing = true;
+const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(reduced){ playing=false; document.getElementById('btnPlay').style.display='inline-block'; }
+
+const btn1=document.getElementById('btn1'), btn2=document.getElementById('btn2'),
+      btnReset=document.getElementById('btnReset'), btnPlay=document.getElementById('btnPlay');
+const vRead=document.getElementById('vRead'), regimeRead=document.getElementById('regimeRead'),
+      dvRead=document.getElementById('dvRead');
+
+btn1.addEventListener('click',()=>{
+  if(phase!=='leo') return;
+  perigeeAngle = thetaLeo;
+  phase='burn1flame'; flameT=0;
+  btn1.disabled=true;
+});
+btn2.addEventListener('click',()=>{
+  // Regardless of how far the coast animation has progressed, clicking Burn 2
+  // commits the satellite to apogee and fires the circularization burn there.
+  if(phase!=='transfer') return;
+  M = Math.PI;
+  phase='burn2flame'; flameT=0;
+  btn2.disabled=true;
+});
+btnReset.addEventListener('click',()=>{
+  phase='leo'; thetaLeo=-Math.PI/2; M=0; dvSpent=0;
+  btn1.disabled=false; btn2.disabled=true;
+});
+btnPlay.addEventListener('click',()=>{ playing=true; btnPlay.style.display='none'; });
+
+function computeState(){
+  if(phase==='leo' || phase==='burn1flame'){
+    const th = (phase==='burn1flame')? perigeeAngle : thetaLeo;
+    return {
+      x: cx+R_LEO_PX*Math.cos(th), y: cy+R_LEO_PX*Math.sin(th),
+      dirx:-Math.sin(th), diry:Math.cos(th),
+      speed: v_leo, regime:'LEO'
+    };
+  }
+  if(phase==='transfer' || phase==='burn2flame'){
+    const Mm = (phase==='burn2flame')? Math.PI : M;
+    const E = solveKepler(Mm, e_t);
+    const nu = 2*Math.atan2(Math.sqrt(1+e_t)*Math.sin(E/2), Math.sqrt(1-e_t)*Math.cos(E/2));
+    const r_km = a_t*(1-e_t*Math.cos(E));
+    const speed = Math.sqrt(MU*(2/r_km - 1/a_t));
+    const vk = Math.sqrt(MU/p_t);
+    const vx_pf = -vk*Math.sin(nu), vy_pf = vk*(e_t+Math.cos(nu));
+    const cA=Math.cos(perigeeAngle), sA=Math.sin(perigeeAngle);
+    const vxr = vx_pf*cA - vy_pf*sA, vyr = vx_pf*sA + vy_pf*cA;
+    const screenAngle = perigeeAngle+nu;
+    const rpx = r_km*scale;
+    const mag = Math.hypot(vxr,vyr)||1;
+    return {
+      x: cx+rpx*Math.cos(screenAngle), y: cy+rpx*Math.sin(screenAngle),
+      dirx:vxr/mag, diry:vyr/mag,
+      speed: speed, regime: (Mm>=Math.PI-1e-6)?'Transfer (apogee)':'Transfer orbit'
+    };
+  }
+  // geo
+  const th = thetaGeo;
+  return {
+    x: cx+R_GEO_PX*Math.cos(th), y: cy+R_GEO_PX*Math.sin(th),
+    dirx:-Math.sin(th), diry:Math.cos(th),
+    speed: v_geo, regime:'GEO'
+  };
+}
+
+function dashedCircle(r,color){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.setLineDash([5,5]); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawTransferEllipse(){
+  ctx.save();
+  ctx.strokeStyle=css('--transfer'); ctx.setLineDash([3,4]); ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let i=0;i<=120;i++){
+    const Mi = Math.PI*i/120;
+    const E = solveKepler(Mi,e_t);
+    const nu = 2*Math.atan2(Math.sqrt(1+e_t)*Math.sin(E/2), Math.sqrt(1-e_t)*Math.cos(E/2));
+    const r_km = a_t*(1-e_t*Math.cos(E));
+    const ang = perigeeAngle+nu;
+    const px = cx+r_km*scale*Math.cos(ang), py=cy+r_km*scale*Math.sin(ang);
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw(st){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // orbits
+  dashedCircle(R_LEO_PX, css('--leo'));
+  dashedCircle(R_GEO_PX, css('--geo'));
+  if(phase==='burn1flame'||phase==='transfer'||phase==='burn2flame') drawTransferEllipse();
+  // earth
+  ctx.fillStyle=css('--earth');
+  ctx.beginPath(); ctx.arc(cx,cy,EARTH_PX,0,Math.PI*2); ctx.fill();
+  // labels
+  ctx.fillStyle=css('--muted'); ctx.font='11px sans-serif';
+  ctx.fillText('LEO', cx+R_LEO_PX+4, cy-4);
+  ctx.fillText('GEO', cx+R_GEO_PX+4, cy-4);
+  // velocity arrow
+  const pxPerKmS=12;
+  const alen = st.speed*pxPerKmS;
+  const ax = st.x+st.dirx*alen, ay = st.y+st.diry*alen;
+  ctx.strokeStyle=css('--arrow'); ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(st.x,st.y); ctx.lineTo(ax,ay); ctx.stroke();
+  ctx.beginPath();
+  const ah=6, ang=Math.atan2(ay-st.y,ax-st.x);
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(ax-ah*Math.cos(ang-0.4), ay-ah*Math.sin(ang-0.4));
+  ctx.lineTo(ax-ah*Math.cos(ang+0.4), ay-ah*Math.sin(ang+0.4));
+  ctx.closePath(); ctx.fillStyle=css('--arrow'); ctx.fill();
+  // flame (opposite velocity direction = behind the satellite)
+  if(phase==='burn1flame'||phase==='burn2flame'){
+    const flen = 16+8*Math.sin(flameT/FLAME_DUR*Math.PI);
+    const fx = st.x-st.dirx*flen, fy = st.y-st.diry*flen;
+    ctx.strokeStyle=css('--flame'); ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(st.x,st.y); ctx.lineTo(fx,fy); ctx.stroke();
+  }
+  // satellite
+  ctx.fillStyle=css('--sat');
+  ctx.beginPath(); ctx.arc(st.x,st.y,4.5,0,Math.PI*2); ctx.fill();
+}
+
+function updateReadouts(st){
+  vRead.textContent = st.speed.toFixed(1);
+  regimeRead.textContent = st.regime;
+  dvRead.textContent = dvSpent.toFixed(1);
+}
+
+let lastT=null;
+function loop(t){
+  if(lastT===null) lastT=t;
+  const dt = Math.min(0.05,(t-lastT)/1000);
+  lastT=t;
+
+  if(playing){
+    if(phase==='leo'){
+      thetaLeo += OMEGA_LEO*dt;
+    } else if(phase==='burn1flame'){
+      flameT += dt;
+      if(flameT>=FLAME_DUR){ phase='transfer'; M=0; dvSpent+=dv1; btn2.disabled=false; }
+    } else if(phase==='transfer'){
+      M += (Math.PI/TRANSFER_DUR)*dt;
+      if(M>=Math.PI){ M=Math.PI; }
+    } else if(phase==='burn2flame'){
+      flameT += dt;
+      if(flameT>=FLAME_DUR){ phase='geo'; thetaGeo = perigeeAngle+Math.PI; dvSpent+=dv2; }
+    } else if(phase==='geo'){
+      thetaGeo += OMEGA_GEO*dt;
+    }
+  }
+
+  const st = computeState();
+  draw(st);
+  updateReadouts(st);
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame((t)=>{
+  lastT=t;
+  const st = computeState();
+  draw(st);
+  updateReadouts(st);
+  window.__sceneReady = true;
+  requestAnimationFrame(loop);
+});
+
+const __ro = new ResizeObserver(() => {
+  parent.postMessage({ explainItScene: "hohmann-transfer", height: document.documentElement.scrollHeight }, "*");
+});
+__ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where each maneuver's dollars come from</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1a1a1a; --muted:#5a5a63; --panel:#f3f4f8; --border:#cfd2da;
+    --propellant:#2f6fed; --hardware:#e08a1e; --energy:#12a56b; --accent:#7c3aed;
+    --box:#e9ecf5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12141c; --fg:#e9e9f0; --muted:#a3a6b3; --panel:#1b1e29; --border:#3a3e4d;
+      --propellant:#5b8bf5; --hardware:#f0a63e; --energy:#2ed99a; --accent:#a583f9;
+      --box:#232739;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+  .scene{max-width:680px;margin:0 auto;padding:14px 16px 20px;}
+  h1{font-size:15px;margin:0 0 10px;font-weight:600;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  button.archBtn{
+    font:inherit;font-size:12.5px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+    background:var(--panel);color:var(--fg);cursor:pointer;
+  }
+  button.archBtn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent);}
+  svg{width:100%;max-width:100%;height:auto;display:block;}
+  .box{fill:var(--box);stroke:var(--border);}
+  .label{fill:var(--fg);font-size:11.5px;}
+  .sub{fill:var(--muted);font-size:10px;}
+  .arrow{stroke:var(--accent);stroke-width:2;fill:none;}
+  .readouts{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0 6px;font-size:12.5px;}
+  .readouts div{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 10px;}
+  .readouts b{display:block;font-size:14px;margin-top:2px;}
+  table.price{border-collapse:collapse;font-size:11.5px;margin:8px 0 4px;}
+  table.price td,table.price th{border:1px solid var(--border);padding:3px 8px;text-align:left;color:var(--fg);}
+  table.price th{color:var(--muted);font-weight:600;}
+  .eq{overflow-x:auto;margin-top:12px;}
+  .legend{color:var(--muted);font-size:11px;margin:2px 0 10px;line-height:1.4;}
+  math{font-size:15px;}
+</style>
+</head>
+<body>
+<div class="scene" id="scene">
+  <h1>Cost of a 100 m/s maneuver, 500 kg / $10M spacecraft</h1>
+
+  <div class="controls" id="controls">
+    <button class="archBtn" data-arch="biprop" aria-pressed="true">Storable biprop</button>
+    <button class="archBtn" data-arch="hall" aria-pressed="false">Hall electric</button>
+    <button class="archBtn" data-arch="solar" aria-pressed="false">Solar thermal</button>
+  </div>
+
+  <svg id="diagram" viewBox="0 0 640 300" role="img" aria-label="Energy flow and cost breakdown diagram">
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="var(--accent)"></path>
+      </marker>
+    </defs>
+
+    <!-- energy flow boxes -->
+    <rect class="box" x="10" y="14" width="180" height="58" rx="8"></rect>
+    <text class="label" x="100" y="36" text-anchor="middle">Energy source</text>
+    <text id="srcText" class="sub" x="100" y="54" text-anchor="middle"></text>
+
+    <rect class="box" x="230" y="14" width="180" height="58" rx="8"></rect>
+    <text class="label" x="320" y="36" text-anchor="middle">Propellant</text>
+    <text id="propText" class="sub" x="320" y="54" text-anchor="middle"></text>
+
+    <rect class="box" x="450" y="14" width="180" height="58" rx="8"></rect>
+    <text class="label" x="540" y="36" text-anchor="middle">Exhaust</text>
+    <text id="exText" class="sub" x="540" y="54" text-anchor="middle"></text>
+
+    <line class="arrow" x1="190" y1="43" x2="228" y2="43" marker-end="url(#arrow)"></line>
+    <line class="arrow" x1="410" y1="43" x2="448" y2="43" marker-end="url(#arrow)"></line>
+
+    <!-- cost bar -->
+    <text class="label" x="10" y="106" font-size="12">Cost per maneuver ($)</text>
+    <text id="totalText" class="label" x="630" y="106" text-anchor="end" font-weight="600"></text>
+
+    <g transform="translate(280,120)">
+      <line x1="0" y1="0" x2="0" y2="160" stroke="var(--border)"></line>
+      <rect id="barProp" class="segProp" x="-40" width="80" y="160" height="0" fill="var(--propellant)"></rect>
+      <rect id="barHw" class="segHw" x="-40" width="80" y="160" height="0" fill="var(--hardware)"></rect>
+      <rect id="barEn" class="segEn" x="-40" width="80" y="160" height="0" fill="var(--energy)"></rect>
+      <line x1="-40" y1="160" x2="40" y2="160" stroke="var(--border)"></line>
+    </g>
+    <g id="barLabels" font-size="10.5"></g>
+  </svg>
+
+  <div class="readouts" id="readouts">
+    <div>Propellant cost<b id="rProp">–</b></div>
+    <div>Hardware amortization<b id="rHw">–</b></div>
+    <div>Energy cost<b id="rEn">–</b></div>
+    <div>Total per maneuver<b id="rTotal">–</b></div>
+  </div>
+
+  <table class="price">
+    <tr><th>Propellant</th><th>Price</th></tr>
+    <tr><td>Ammonia (solar thermal)</td><td>$1.00 / kg</td></tr>
+    <tr><td>Xenon (Hall)</td><td>$2,500.00 / kg</td></tr>
+  </table>
+
+  <div class="eq">
+    <math display="block">
+      <msub><mi>m</mi><mtext>p</mtext></msub><mo>=</mo><msub><mi>m</mi><mn>0</mn></msub>
+      <mo>(</mo><msup><mi>e</mi><mrow><mi>Δv</mi><mo>/</mo><msub><mi>v</mi><mtext>e</mtext></msub></mrow></msup><mo>-</mo><mn>1</mn><mo>)</mo>
+      <mo>,</mo><mspace width="10px"></mspace>
+      <msub><mi>v</mi><mtext>e</mtext></msub><mo>=</mo><msub><mi>I</mi><mtext>sp</mtext></msub><msub><mi>g</mi><mn>0</mn></msub>
+    </math>
+  </div>
+  <div class="legend">m<sub></sub>p — propellant mass burned (kg) · m0 — spacecraft mass, 500 kg · Δv — maneuver size, 100 m/s ·
+  v_e — exhaust velocity (m/s) · I_sp — specific impulse (s) · g0 — 9.80665 m/s²</div>
+
+  <div class="eq">
+    <math display="block">
+      <mi>C</mi><mo>=</mo><msub><mi>m</mi><mtext>p</mtext></msub><mi>p</mi><mo>+</mo>
+      <mfrac><msub><mi>C</mi><mtext>hw</mtext></msub><mi>N</mi></mfrac><mo>+</mo><msub><mi>C</mi><mtext>E</mtext></msub>
+    </math>
+  </div>
+  <div class="legend">C — total cost of one maneuver ($) · p — propellant price ($/kg) · C_hw — propulsion hardware capital cost ($) ·
+  N — maneuvers the hardware is amortized over (design life capped by mission length) · C_E — marginal energy cost ($, zero for sunlight-driven systems)</div>
+</div>
+
+<script>
+(function(){
+  // ---- physical constants ----
+  const G0 = 9.80665;      // m/s^2, standard gravity
+  const M0 = 500;          // kg, spacecraft wet mass
+  const DV = 100;          // m/s, reference maneuver (fixed, per anchor)
+  const MISSION_MANEUVERS = 20; // planned station-keeping burns over mission life (amortization cap)
+
+  const ARCH = {
+    biprop: {
+      label:'Storable biprop', isp:300, price:5, capital:4380000, life:3,
+      src:'Onboard chemical bonds', propName:'Hydrazine/NTO'
+    },
+    hall: {
+      label:'Hall electric', isp:1800, price:2500, capital:4180000, life:20,
+      src:'Sunlight \u2192 solar panels \u2192 electric field', propName:'Xenon'
+    },
+    solar: {
+      label:'Solar thermal', isp:700, price:1, capital:4440000, life:300,
+      src:'Sunlight \u2192 mirror \u2192 propellant heat', propName:'Ammonia'
+    }
+  };
+
+  function compute(key){
+    const a = ARCH[key];
+    const ve = a.isp * G0;
+    const mp = M0 * (Math.exp(DV/ve) - 1);
+    const propCost = mp * a.price;
+    const denom = Math.min(a.life, MISSION_MANEUVERS);
+    const hwCost = a.capital / denom;
+    const energyCost = 0; // free source in every architecture: sunlight, or bonds bundled in propellant price
+    const total = propCost + hwCost + energyCost;
+    return {mp, propCost, hwCost, energyCost, total, ve};
+  }
+
+  // scale reference = largest possible total (storable biprop) so bar heights are linear & comparable
+  const REF = compute('biprop').total;
+  const BAR_MAX = 160; // px
+
+  function fmt(x){
+    if (x < 1) return '$' + x.toFixed(2);
+    return '$' + Math.round(x).toLocaleString('en-US');
+  }
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let animId = null;
+  let cur = {prop:0, hw:0, en:0}; // current animated px heights
+
+  function setBarHeights(target, animate){
+    const total = target.prop + target.hw + target.en;
+    const h = {
+      prop: Math.max(0, (target.propCost/REF)*BAR_MAX),
+      hw:   Math.max(0, (target.hwCost/REF)*BAR_MAX),
+      en:   Math.max(0, (target.energyCost/REF)*BAR_MAX)
+    };
+    const barProp = document.getElementById('barProp');
+    const barHw = document.getElementById('barHw');
+    const barEn = document.getElementById('barEn');
+
+    function draw(p,hw2,en2){
+      // stack from baseline y=160 upward: propellant, then hardware, then energy
+      barProp.setAttribute('y', 160-p); barProp.setAttribute('height', p);
+      barHw.setAttribute('y', 160-p-hw2); barHw.setAttribute('height', hw2);
+      barEn.setAttribute('y', 160-p-hw2-en2); barEn.setAttribute('height', en2);
+    }
+
+    if (reduced || !animate){
+      cur = {prop:h.prop, hw:h.hw, en:h.en};
+      draw(h.prop, h.hw, h.en);
+      return;
+    }
+    const start = {...cur};
+    const t0 = performance.now();
+    const DUR = 420;
+    if (animId) cancelAnimationFrame(animId);
+    function step(t){
+      const k = Math.min(1, (t-t0)/DUR);
+      const ease = 1 - Math.pow(1-k, 3);
+      const p = start.prop + (h.prop-start.prop)*ease;
+      const hw2 = start.hw + (h.hw-start.hw)*ease;
+      const en2 = start.en + (h.en-start.en)*ease;
+      draw(p, hw2, en2);
+      if (k < 1){ animId = requestAnimationFrame(step); }
+      else { cur = h; }
+    }
+    animId = requestAnimationFrame(step);
+  }
+
+  function render(key, animate){
+    const a = ARCH[key];
+    const r = compute(key);
+
+    document.getElementById('srcText').textContent = a.src;
+    document.getElementById('propText').textContent = a.propName + ' — $' + a.price.toFixed(2) + '/kg';
+    document.getElementById('exText').textContent = 'Isp ' + a.isp + ' s, Δv 100 m/s';
+
+    document.getElementById('rProp').textContent = fmt(r.propCost);
+    document.getElementById('rHw').textContent = fmt(r.hwCost);
+    document.getElementById('rEn').textContent = fmt(r.energyCost);
+    document.getElementById('rTotal').textContent = fmt(r.total);
+    document.getElementById('totalText').textContent = 'Total: ' + fmt(r.total) + '  (mp = ' + r.mp.toFixed(2) + ' kg)';
+
+    setBarHeights({propCost:r.propCost, hwCost:r.hwCost, energyCost:r.energyCost}, animate);
+
+    // side labels for the bar segments
+    const g = document.getElementById('barLabels');
+    g.innerHTML = '';
+    const items = [
+      ['Propellant', r.propCost, 'var(--propellant)'],
+      ['Hardware', r.hwCost, 'var(--hardware)'],
+      ['Energy', r.energyCost, 'var(--energy)']
+    ];
+    let ly = 130;
+    items.forEach(function(it){
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', 340); t.setAttribute('y', ly);
+      t.setAttribute('fill', it[2]);
+      t.textContent = it[0] + ': ' + fmt(it[1]);
+      g.appendChild(t);
+      ly += 14;
+    });
+
+    document.querySelectorAll('.archBtn').forEach(function(b){
+      b.setAttribute('aria-pressed', b.dataset.arch === key ? 'true' : 'false');
+    });
+  }
+
+  document.getElementById('controls').addEventListener('click', function(e){
+    const btn = e.target.closest('.archBtn');
+    if (!btn) return;
+    render(btn.dataset.arch, true);
+  });
+
+  render('biprop', false);
+  window.__sceneReady = true;
+
+  const __ro = new ResizeObserver(() => {
+    parent.postMessage({ explainItScene: "free-energy-cost", height: document.documentElement.scrollHeight }, "*");
+  });
+  __ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>

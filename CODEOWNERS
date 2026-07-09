@@ -1,0 +1,5 @@
+# Endorsements carry real-world credibility — only maintainers may approve changes.
+/endorsements.json @idea-explainer/maintainers
+# CI and merge policy are maintainer-owned.
+/.github/ @idea-explainer/maintainers
+/CODEOWNERS @idea-explainer/maintainers

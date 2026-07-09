@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propellant vs. Delta-v</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f4f5f7; --fg:#1a1a1a; --muted:#5b5f66;
+    --grid:#d9dadd; --accent:#d1453a; --curve-dim:#9aa3ad;
+    --wall:#a8761f; --cursor:#1a1a1a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#15171b; --panel:#1d2126; --fg:#eaeaea; --muted:#a2a7ae;
+      --grid:#31353b; --accent:#ff7362; --curve-dim:#68727e;
+      --wall:#e2ac4a; --cursor:#eaeaea;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:680px;margin:0 auto;padding:12px 14px 18px;}
+  h2{font-size:1.02rem;margin:0 0 8px;font-weight:600;}
+  canvas{max-width:100%;height:auto;display:block;background:var(--panel);
+    border-radius:6px;}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;}
+  label{font-size:0.82rem;color:var(--muted);}
+  input[type=range]{flex:1;min-width:140px;}
+  .isp-btns{display:flex;gap:6px;flex-wrap:wrap;}
+  button{font-size:0.78rem;padding:5px 9px;border-radius:5px;border:1px solid var(--grid);
+    background:var(--panel);color:var(--fg);cursor:pointer;}
+  button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .readouts{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:0.85rem;}
+  .readouts b{font-variant-numeric:tabular-nums;}
+  .eqwrap{margin-top:12px;}
+  .legend{font-size:0.74rem;color:var(--muted);margin-top:2px;line-height:1.35;}
+  math{font-size:1rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>Propellant mass required vs. mission Δv</h2>
+  <canvas id="cv" width="640" height="380" role="img"
+    aria-label="Plot of propellant mass required versus delta-v for three specific impulses"></canvas>
+
+  <div class="controls">
+    <div class="row">
+      <label for="dv" style="min-width:230px;">mission-required Δv: <b id="dvLabel">0</b> m/s</label>
+      <input id="dv" type="range" min="0" max="6000" step="10" value="0">
+    </div>
+    <div class="row">
+      <label>specific impulse (I<sub>sp</sub>):</label>
+      <div class="isp-btns">
+        <button data-isp="220">220 s (typical chemical)</button>
+        <button data-isp="300">300 s (best chemical)</button>
+        <button data-isp="1500">1500 s (electric)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <div>Δv: <b id="rDv">0</b> m/s</div>
+    <div>I<sub>sp</sub>: <b id="rIsp">300</b> s</div>
+    <div>propellant mass: <b id="rProp">0</b> kg</div>
+    <div>wet mass: <b id="rWet">500</b> kg</div>
+  </div>
+
+  <div class="eqwrap">
+    <math display="block">
+      <mi>&#916;v</mi><mo>=</mo>
+      <msub><mi>I</mi><mtext>sp</mtext></msub><mo>&#183;</mo>
+      <msub><mi>g</mi><mn>0</mn></msub><mo>&#183;</mo>
+      <mi>ln</mi><mfrac><msub><mi>m</mi><mtext>wet</mtext></msub><msub><mi>m</mi><mtext>dry</mtext></msub></mfrac>
+    </math>
+    <div class="legend">
+      &#916;v &#8212; mission delta-v, total velocity change planned (m/s) &#183;
+      I<sub>sp</sub> &#8212; specific impulse (s) &#183;
+      g<sub>0</sub> &#8212; standard gravity, 9.81 m/s&#178; &#183;
+      m<sub>wet</sub>, m<sub>dry</sub> &#8212; fueled and empty spacecraft mass (kg)
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const G0 = 9.80665;       // m/s^2, standard gravity
+  const M_DRY = 500;        // kg, dry spacecraft mass
+  const DV_MAX = 6000;      // m/s
+  const MASS_MAX = 800;     // kg, plot ceiling
+  const WALL_DV = 700;      // m/s, chemical tank-capacity wall
+
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const padL = 62, padR = 16, padT = 18, padB = 44;
+
+  const css = getComputedStyle(document.documentElement);
+  const col = n => css.getPropertyValue(n).trim();
+
+  const reduceMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const dvSlider = document.getElementById('dv');
+  const dvLabel = document.getElementById('dvLabel');
+  const rDv = document.getElementById('rDv');
+  const rIsp = document.getElementById('rIsp');
+  const rProp = document.getElementById('rProp');
+  const rWet = document.getElementById('rWet');
+  const ispButtons = Array.from(document.querySelectorAll('.isp-btns button'));
+
+  const state = { targetDv: 0, animDv: 0, isp: 300 };
+
+  function propMass(dv, isp){
+    return M_DRY * (Math.exp(dv / (isp * G0)) - 1);
+  }
+
+  function xOf(dv){ return padL + (dv / DV_MAX) * (W - padL - padR); }
+  function yOf(m){ return (H - padB) - (m / MASS_MAX) * (H - padT - padB); }
+
+  function computeCurve(isp){
+    const pts = [];
+    for (let dv = 0; dv <= DV_MAX; dv += 15){
+      const m = propMass(dv, isp);
+      if (m > MASS_MAX) break;
+      pts.push({ x: xOf(dv), y: yOf(m), dv, m });
+    }
+    return pts;
+  }
+
+  function strokeCurve(pts, color, width){
+    if (!pts.length) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    pts.forEach((p,i)=>{
+      if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+    });
+    ctx.stroke();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // grid + axes
+    ctx.strokeStyle = col('--grid');
+    ctx.fillStyle = col('--muted');
+    ctx.font = '11px -apple-system,Segoe UI,sans-serif';
+    ctx.lineWidth = 1;
+    for (let dv=0; dv<=DV_MAX; dv+=1000){
+      const x = xOf(dv);
+      ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,H-padB); ctx.stroke();
+      ctx.textAlign='center';
+      ctx.fillText(dv, x, H-padB+16);
+    }
+    for (let m=0; m<=MASS_MAX; m+=200){
+      const y = yOf(m);
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+      ctx.textAlign='right';
+      ctx.fillText(m, padL-8, y+4);
+    }
+    ctx.fillStyle = col('--fg');
+    ctx.textAlign='center';
+    ctx.fillText('mission-required \u0394v \u2014 total velocity change planned (m/s)', (padL+W-padR)/2, H-8);
+    ctx.save();
+    ctx.translate(14, (padT+H-padB)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign='center';
+    ctx.fillText('propellant mass required (kg)', 0, 0);
+    ctx.restore();
+
+    // wall reference line
+    const wx = xOf(WALL_DV);
+    ctx.save();
+    ctx.strokeStyle = col('--wall');
+    ctx.setLineDash([5,4]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(wx,padT); ctx.lineTo(wx,H-padB); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = col('--wall');
+    ctx.font = '10.5px -apple-system,Segoe UI,sans-serif';
+    ctx.textAlign='left';
+    ctx.fillText('chemical tank-capacity wall \u2014', wx+4, padT+12);
+    ctx.fillText('tanks physically full (~700 m/s)', wx+4, padT+24);
+
+    // curves: dim ones first, selected on top
+    const specs = [
+      {isp:220, label:'220 s (typical chemical)'},
+      {isp:300, label:'300 s (best chemical)'},
+      {isp:1500, label:'1500 s (electric)'}
+    ];
+
+    const curveData = specs.map(s=>({
+      s,
+      pts: computeCurve(s.isp),
+      color: s.isp === state.isp ? col('--accent') : col('--curve-dim'),
+      width: s.isp === state.isp ? 2.6 : 1.4
+    }));
+
+    // draw dim curves first, then selected one on top
+    curveData.forEach(c=>{ if (c.s.isp !== state.isp) strokeCurve(c.pts, c.color, c.width); });
+    const selC = curveData.find(c=>c.s.isp===state.isp);
+    strokeCurve(selC.pts, selC.color, selC.width);
+
+    // labels: compute anchor points then resolve vertical overlap
+    const labelInfo = curveData
+      .filter(c=>c.pts.length)
+      .map(c=>{
+        const lastPt = c.pts[c.pts.length - 1];
+        const lx = Math.min(lastPt.x + 4, W - padR - 4);
+        const align = (lastPt.x + 4 > W - padR - 60) ? 'end' : 'start';
+        return { lx, ly: Math.max(lastPt.y, padT + 10), align, color: c.color, text: c.s.label };
+      });
+    labelInfo.sort((a,b)=>a.ly - b.ly);
+    const MIN_GAP = 13;
+    for (let i=1;i<labelInfo.length;i++){
+      if (labelInfo[i].ly - labelInfo[i-1].ly < MIN_GAP){
+        labelInfo[i].ly = labelInfo[i-1].ly + MIN_GAP;
+      }
+    }
+    ctx.font = '11px -apple-system,Segoe UI,sans-serif';
+    labelInfo.forEach(l=>{
+      ctx.fillStyle = l.color;
+      ctx.textAlign = l.align;
+      ctx.fillText(l.text, l.lx, l.ly);
+    });
+
+    // cursor
+    const m = propMass(state.animDv, state.isp);
+    const cx = xOf(state.animDv);
+    const cy = yOf(Math.min(m, MASS_MAX));
+    ctx.beginPath();
+    ctx.fillStyle = col('--cursor');
+    ctx.arc(cx, cy, 4.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function updateReadouts(){
+    const dv = Math.round(state.targetDv);
+    const isp = state.isp;
+    const m = propMass(dv, isp);
+    dvLabel.textContent = dv;
+    rDv.textContent = dv;
+    rIsp.textContent = isp;
+    rProp.textContent = Math.round(m);
+    rWet.textContent = Math.round(M_DRY + m);
+  }
+
+  function tick(){
+    const diff = state.targetDv - state.animDv;
+    if (reduceMotion || Math.abs(diff) < 0.5){
+      state.animDv = state.targetDv;
+    } else {
+      state.animDv += diff * 0.22;
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  dvSlider.addEventListener('input', ()=>{
+    state.targetDv = Number(dvSlider.value);
+    updateReadouts();
+    if (reduceMotion) state.animDv = state.targetDv;
+  });
+
+  ispButtons.forEach(btn=>{
+    const val = Number(btn.dataset.isp);
+    if (val === state.isp) btn.classList.add('active');
+    btn.addEventListener('click', ()=>{
+      state.isp = val;
+      ispButtons.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      updateReadouts();
+    });
+  });
+
+  updateReadouts();
+  draw();
+  requestAnimationFrame(tick);
+
+  window.__sceneReady = true;
+
+  const __ro = new ResizeObserver(() => {
+    parent.postMessage({ explainItScene: "rocket-equation", height: document.documentElement.scrollHeight }, "*");
+  });
+  __ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>

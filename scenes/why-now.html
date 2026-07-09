@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why Now — Material Temperature Ceiling</title>
+<style>
+  :root{
+    --bg:#f7f7f9;
+    --panel:#ffffff;
+    --text:#1a1a1a;
+    --muted:#666a72;
+    --border:#d3d5db;
+    --accent:#2454c7;
+    --hx-cold:#5b6470;
+    --hx-hot:#ffdf9e;
+    --tube:#2a2e35;
+    --glow:#ffcf6b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12141a;
+      --panel:#1b1e26;
+      --text:#e9eaef;
+      --muted:#9aa0ac;
+      --border:#333844;
+      --accent:#7fa2ff;
+      --hx-cold:#3a4250;
+      --hx-hot:#ffe3a8;
+      --tube:#c9d0dc;
+      --glow:#ffcf6b;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;
+  }
+  .scene{
+    max-width:680px;
+    margin:0 auto;
+    padding:14px 16px 18px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  label{font-size:13px;font-weight:600;}
+  input[type=range]{flex:1;min-width:140px;accent-color:var(--accent);}
+  button{
+    font-size:12px;padding:5px 10px;border-radius:6px;
+    border:1px solid var(--border);background:var(--panel);color:var(--text);
+    cursor:pointer;
+  }
+  .ticklabels{
+    display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);
+    margin-top:2px;gap:6px;
+  }
+  svg{max-width:100%;height:auto;display:block;margin:12px auto 6px;}
+  .readouts{
+    display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;
+  }
+  .box{
+    flex:1;min-width:120px;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:8px 10px;font-size:12.5px;
+  }
+  .box .num{font-size:18px;font-weight:700;color:var(--accent);}
+  .card{
+    margin-top:10px;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:8px 10px;font-size:12.5px;display:flex;
+    justify-content:space-between;gap:10px;flex-wrap:wrap;
+  }
+  math{font-size:15px;display:block;margin:14px 0 2px;}
+  .legend{font-size:11px;color:var(--muted);line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="scene" id="scene">
+
+  <div class="row">
+    <label for="tSlider">Heat-exchanger material temperature limit, T (K)</label>
+  </div>
+  <div class="row">
+    <input type="range" id="tSlider" min="1800" max="3000" step="10" value="1800">
+    <button id="playBtn">Pause glow</button>
+  </div>
+  <div class="ticklabels">
+    <span>1800 K — 1980s alloys, brazed assemblies</span>
+    <span>3000 K — 2020s refractory alloys, printed monolith</span>
+  </div>
+
+  <svg id="hx" viewBox="0 0 320 150" role="img" aria-label="heat exchanger diagram">
+    <circle id="glow" cx="160" cy="70" r="55" fill="var(--glow)" opacity="0.15"></circle>
+    <rect id="hxBody" x="40" y="30" width="240" height="80" rx="8" fill="#5b6470" stroke="var(--tube)" stroke-width="2"></rect>
+    <g id="tubes" stroke="var(--tube)" stroke-width="2" opacity="0.55">
+      <line x1="55" y1="45" x2="265" y2="45"></line>
+      <line x1="55" y1="60" x2="265" y2="60"></line>
+      <line x1="55" y1="75" x2="265" y2="75"></line>
+      <line x1="55" y1="90" x2="265" y2="90"></line>
+      <line x1="55" y1="105" x2="265" y2="105"></line>
+    </g>
+    <text id="calloutText" x="160" y="133" text-anchor="middle" font-size="11" fill="var(--text)">Assembly: hundreds of brazed parts</text>
+  </svg>
+
+  <div class="readouts">
+    <div class="box">T limit<br><span class="num" id="tVal">1800</span> K</div>
+    <div class="box">NH₃ I<sub>sp</sub><br><span class="num" id="nh3Val">--</span> s</div>
+    <div class="box">H₂ I<sub>sp</sub><br><span class="num" id="h2Val">--</span> s</div>
+  </div>
+
+  <div class="card">
+    <div>Membrane mirror: <b>&gt;1000 W/kg</b></div>
+    <div>Conventional array: <b>~100 W/kg</b></div>
+  </div>
+
+  <math display="block">
+    <msub><mi>I</mi><mtext>sp</mtext></msub><mo>(</mo><mi>T</mi><mo>)</mo>
+    <mo>=</mo>
+    <msub><mi>I</mi><mtext>sp,ref</mtext></msub>
+    <msqrt><mfrac><mi>T</mi><msub><mi>T</mi><mtext>ref</mtext></msub></mfrac></msqrt>
+  </math>
+  <div class="legend">
+    I<sub>sp</sub>(T) — specific impulse at temperature limit T (s) &middot;
+    I<sub>sp,ref</sub> — reference specific impulse at T<sub>ref</sub> for each propellant (s), calibrated to ground/theoretical performance &middot;
+    T — heat-exchanger material temperature limit (K, slider) &middot;
+    T<sub>ref</sub> — reference temperature, 3000 K
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const T_REF = 3000;          // K, calibration reference
+  const ISP_NH3_REF = 420;     // s, ammonia Isp at T_REF
+  const ISP_H2_REF  = 800;     // s, hydrogen Isp at T_REF
+
+  const slider = document.getElementById('tSlider');
+  const tVal = document.getElementById('tVal');
+  const nh3Val = document.getElementById('nh3Val');
+  const h2Val = document.getElementById('h2Val');
+  const hxBody = document.getElementById('hxBody');
+  const callout = document.getElementById('calloutText');
+  const glow = document.getElementById('glow');
+  const playBtn = document.getElementById('playBtn');
+
+  function ispAt(T, ref){ return ref * Math.sqrt(T / T_REF); }
+
+  function hexToRgb(hex){
+    hex = hex.trim().replace('#','');
+    if(hex.length===3){ hex = hex.split('').map(c=>c+c).join(''); }
+    const n = parseInt(hex,16);
+    return [(n>>16)&255, (n>>8)&255, n&255];
+  }
+  function lerpColor(c1, c2, t){
+    const a = hexToRgb(c1), b = hexToRgb(c2);
+    const r = Math.round(a[0]+(b[0]-a[0])*t);
+    const g = Math.round(a[1]+(b[1]-a[1])*t);
+    const bl= Math.round(a[2]+(b[2]-a[2])*t);
+    return 'rgb('+r+','+g+','+bl+')';
+  }
+  function cssVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  let frac = 0;
+  function render(){
+    const T = parseFloat(slider.value);
+    tVal.textContent = Math.round(T);
+    nh3Val.textContent = ispAt(T, ISP_NH3_REF).toFixed(0);
+    h2Val.textContent = ispAt(T, ISP_H2_REF).toFixed(0);
+
+    frac = (T - 1800) / (3000 - 1800);
+    const cold = cssVar('--hx-cold');
+    const hot = cssVar('--hx-hot');
+    hxBody.setAttribute('fill', lerpColor(cold, hot, frac));
+
+    callout.textContent = T >= 2400
+      ? 'Assembly: single printed part'
+      : 'Assembly: hundreds of brazed parts';
+  }
+
+  slider.addEventListener('input', render);
+  render();
+
+  // Glow pulse animation (radiative heat cue), respects reduced motion
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let playing = !reduceMotion;
+  playBtn.textContent = playing ? 'Pause glow' : 'Play glow';
+
+  let t0 = performance.now();
+  function tick(now){
+    if(playing){
+      const dt = (now - t0) / 1000;
+      const pulse = 0.5 + 0.5 * Math.sin(dt * 2.2);
+      const baseOpacity = 0.05 + 0.35 * frac;
+      glow.setAttribute('opacity', (baseOpacity * (0.6 + 0.4*pulse)).toFixed(3));
+      const r = 50 + 10 * frac * pulse;
+      glow.setAttribute('r', r.toFixed(1));
+    }
+    requestAnimationFrame(tick);
+  }
+  if(reduceMotion){
+    glow.setAttribute('opacity', '0.12');
+  }
+  requestAnimationFrame(tick);
+
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? 'Pause glow' : 'Play glow';
+    t0 = performance.now();
+  });
+
+  window.__sceneReady = true;
+
+  const __ro = new ResizeObserver(() => {
+    parent.postMessage({ explainItScene: "why-now", height: document.documentElement.scrollHeight }, "*");
+  });
+  __ro.observe(document.documentElement);
+})();
+</script>
+</body>
+</html>
