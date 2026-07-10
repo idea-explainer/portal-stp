@@ -152,9 +152,9 @@ Checks:
 
 Teaches: Specific impulse is the momentum a rocket buys per kilogram of propellant — its exhaust velocity, quoted as Isp = v_e/g₀.
 
-Caption: Every rocket is in the business of buying momentum with mass, so let us ask the natural question: how much momentum do you get for each kilogram you throw away? The answer is simply the exhaust velocity — a kilogram thrown out at \(v_e\) carries \(v_e\) of momentum, no more and no less. Engineers, by an old convention, divide by \(g_0\) and quote it in seconds: \(I_{sp} = v_e/g_0\). A typical chemical thruster leaves the nozzle near 2.2 km/s (\(I_{sp}\) about 220 s), and even an exceptionally good one only reaches ~2.9 km/s (300 s); an ion thruster — the workhorse type is called a Hall thruster — hurls its atoms at some 15 km/s (\(I_{sp}\) about 1,500 s) — roughly seven times the momentum of a typical chemical thruster for every kilogram spent.
+Caption: Every rocket is in the business of buying momentum with mass, so let us ask the natural question: how much momentum do you get for each kilogram you throw away? The answer is simply the exhaust velocity — a kilogram thrown out at \(v_e\) carries \(v_e\) of momentum, no more and no less. Engineers, by an old convention, divide by \(g_0\) and quote it in seconds: \(I_{sp} = v_e/g_0\). A typical chemical thruster leaves the nozzle near 2.2 km/s (\(I_{sp}\) about 220 s); an ion thruster — the workhorse type is called a Hall thruster — hurls its atoms at some 15 km/s (\(I_{sp}\) about 1,500 s) — roughly seven times the momentum of a typical chemical thruster for every kilogram spent.
 
-Visual: A spacecraft on a frictionless track ejects discrete 1 kg pellets to the left; pellet trail length is proportional to v_e. A slider sets v_e. Three live readouts: Isp in seconds (v_e/9.81), momentum delivered per kg expelled (kg·m/s), and propellant flow rate needed to sustain 1 N of thrust (g/s). Markers on the slider label 'typical chemical: ~2.2 km/s (220 s)', 'best chemical: ~2.9 km/s (300 s)', and 'Hall thruster: ~15 km/s (1,500 s)'. Equation shown: Isp = v_e / g₀.
+Visual: A spacecraft on a frictionless track ejects discrete 1 kg pellets to the left; pellet trail length is proportional to v_e. A slider sets v_e. Three live readouts: Isp in seconds (v_e/9.81), momentum delivered per kg expelled (kg·m/s), and propellant flow rate needed to sustain 1 N of thrust (g/s). Markers on the slider label 'typical chemical: ~2.2 km/s (220 s)' and 'Hall thruster: ~15 km/s (1,500 s)'. Equation shown: Isp = v_e / g₀.
 
 Interactive:
 - variable: exhaust velocity v_e
@@ -162,7 +162,7 @@ Interactive:
 - range: v_e = 1.8 to 15 km/s
 - on-screen: Pellets fly out faster, the Isp readout rises proportionally, and the grams-per-second needed for 1 N of thrust falls.
 
-Anchor: v_e ≈ 15 km/s corresponds to Isp ≈ 1,500 s (Hall thruster); v_e ≈ 2.2 km/s corresponds to Isp ≈ 220 s (typical chemical thruster); 300 s is near the best a storable chemical thruster achieves.
+Anchor: v_e ≈ 15 km/s corresponds to Isp ≈ 1,500 s (Hall thruster); v_e ≈ 2.2 km/s corresponds to Isp ≈ 220 s (typical chemical thruster).
 
 Checks:
 - Isp readout equals v_e/9.81 within 1% at every slider position.
@@ -176,23 +176,22 @@ Checks:
 
 Teaches: Propellant requirements grow exponentially with the delta-v demanded, because each kilogram of propellant must itself be accelerated by propellant burned earlier.
 
-Caption: Now watch what happens when we add up the recoil over a whole burn. The propellant you burn late had to be carried — and accelerated — by the propellant you burned early, and propellant pushing propellant compounds exactly like interest. The sum is Tsiolkovsky's equation, \(Δv = I_{sp}·g_0·ln(m_{wet}/m_{dry})\), and turned around it says the propellant mass grows exponentially with the mission-required delta-v — the total velocity change you plan to execute. That exponential is merciless: a 500 kg spacecraft on chemical propellant — \(I_{sp}\) 300 s at its very best, closer to 220 s for a typical thruster — cannot tank its way past about 700 m/s no matter how it tries. The only escape is to raise the exhaust velocity, which shrinks the exponent — and that is why \(I_{sp}\) is worth real money.
+Caption: Now watch what happens when we add up the recoil over a whole burn. The propellant you burn late had to be carried — and accelerated — by the propellant you burned early, and propellant pushing propellant compounds exactly like interest. The sum is Tsiolkovsky's equation, \(Δv = I_{sp}·g_0·ln(m_{wet}/m_{dry})\), and turned around it says the propellant mass grows exponentially with the mission-required delta-v — the total velocity change you plan to execute. That exponential is merciless: a 500 kg spacecraft on chemical propellant — \(I_{sp}\) about 220 s for a typical thruster — cannot tank its way past about 700 m/s no matter how it tries. The only escape is to raise the exhaust velocity, which shrinks the exponent — and that is why \(I_{sp}\) is worth real money.
 
-Visual: A plot of required propellant mass (y, 0–800 kg) versus mission-required delta-v (x, 0–6,000 m/s; axis labeled 'mission-required Δv — total velocity change planned') for a 500 kg dry spacecraft, computed from m_prop = m_dry·(e^(Δv/(Isp·g₀)) − 1). A slider sets Δv and drags a cursor along the curve; buttons switch Isp among 220 s (typical chemical), 300 s (best chemical), and 1,500 s (electric), redrawing the curve — no cryogenic option, because spacecraft cannot store cryogens. A vertical dashed line at ~700 m/s on the Isp = 300 s curve labeled in plain words: 'chemical tank-capacity wall — the tanks are physically full'. Equation displayed: Δv = Isp·g₀·ln(m_wet/m_dry).
+Visual: A plot of required propellant mass (y, 0–800 kg) versus mission-required delta-v (x, 0–6,000 m/s; axis labeled 'mission-required Δv — total velocity change planned') for a 500 kg dry spacecraft, computed from m_prop = m_dry·(e^(Δv/(Isp·g₀)) − 1). A slider sets Δv and drags a cursor along the curve; buttons switch Isp between 220 s (typical chemical) and 1,500 s (typical electric), redrawing the curve — no cryogenic option, because spacecraft cannot store cryogens. A vertical dashed line at ~700 m/s on the Isp = 220 s curve labeled in plain words: 'chemical tank-capacity wall — the tanks are physically full'. Equation displayed: Δv = Isp·g₀·ln(m_wet/m_dry).
 
 Interactive:
 - variable: mission-required delta-v (with Isp selectable)
 - control: slider
-- range: Δv = 0 to 6,000 m/s; Isp buttons: 220 s typical chemical / 300 s best chemical / 1,500 s electric
+- range: Δv = 0 to 6,000 m/s; Isp buttons: 220 s typical chemical / 1,500 s typical electric
 - on-screen: The cursor climbs the propellant curve; the propellant-mass readout grows faster and faster; switching Isp buttons visibly flattens or steepens the entire curve.
 
-Anchor: At Isp = 300 s, a 500 kg-class spacecraft on storable chemical propellant exhausts its practical delta-v budget near 700 m/s.
+Anchor: At typical chemical Isp (220 s), a 500 kg-class spacecraft on storable propellant exhausts its practical delta-v budget near 700 m/s.
 
 Checks:
 - Every curve is convex and increasing: doubling Δv from 1,000 to 2,000 m/s more than doubles the required propellant mass per kg of dry mass.
-- The 220 s curve lies above the 300 s curve at every Δv > 0 — a typical thruster needs more propellant than the best one.
-- At fixed Δv, switching from Isp 300 s to Isp 1,500 s reduces the propellant readout by more than a factor of 4.
-- The 'tank-capacity wall' marker sits at ~700 m/s on the Isp = 300 s curve.
+- At fixed Δv > 0, switching from Isp 220 s to Isp 1,500 s reduces the propellant readout by more than a factor of 6.
+- The 'tank-capacity wall' marker sits at ~700 m/s on the Isp = 220 s curve.
 - Propellant readout at Δv = 0 is exactly 0 kg.
 
 ### Thrust decides how long a maneuver takes {#thrust-sets-time}
@@ -226,24 +225,24 @@ Checks:
 
 Teaches: Chemical and electric propulsion occupy opposite corners of the thrust–Isp plane because chemical exhaust velocity is capped by combustion chemistry while electric thrust is capped by available panel power.
 
-Caption: Let us put every engine on one map: thrust up the side, \(I_{sp}\) along the bottom. The chemical rocket carries its energy in its own chemical bonds, so it can release power furiously — hundreds of newtons — but combustion decides what molecules come out, and they will not leave faster than about 3.2 km/s. The electric thruster takes its energy from solar panels, so its exhaust can be marvelously fast, 15 km/s; but thrust is \(F ≈ 2ηP/v_e\), and a few kilowatts divided by a fast exhaust is millinewtons. Slide the panel power as high as you honestly can, and the electric point never comes near 100 N. The upper-right corner of the map — strong and efficient at once — has sat empty for fifty years.
+Caption: Let us put every engine on one map: thrust up the side, \(I_{sp}\) along the bottom. The chemical rocket carries its energy in its own chemical bonds, so it can release power furiously — hundreds of newtons — but combustion decides what molecules come out, and they will not leave faster than about 3.2 km/s. The electric thruster takes its energy from solar panels, so its exhaust can be marvelously fast, 15 km/s; but thrust is \(F ≈ 2ηP/v_e\), and a few kilowatts divided by a fast exhaust is millinewtons. Slide the panel power as high as you honestly can, and the electric point never comes near 100 N. The region between them — a hundred newtons of thrust at an \(I_{sp}\) of 500 s or so, strong and efficient at once — has sat empty for fifty years.
 
-Visual: A 2D scatter plane: x = Isp (log, 100–2,000 s), y = thrust (log, 1 mN–1 kN). A fixed red marker for storable chemical (Isp 180–330 s band, ~100–400 N). A blue marker for a Hall thruster at Isp 1,500 s whose vertical position is computed from F = 2ηP/v_e (η = 0.5) as a slider varies panel power P. The upper-right quadrant is shaded and labeled 'empty for 50 years'. A side readout shows the electric thrust in newtons and the burn time for 100 m/s at that thrust.
+Visual: A 2D scatter plane: x = Isp (log, 100–2,000 s), y = thrust (log, 1 mN–1 kN). A fixed red marker for storable chemical (Isp 180–330 s band, ~100–400 N). A blue marker for a Hall thruster at Isp 1,500 s whose vertical position is computed from F = 2ηP/v_e (η = 0.5) as a slider varies panel power P. A shaded region spanning Isp ≈ 350–2,000 s at thrust above ~10 N — visually centered near Isp 500 s, thrust 100 N — is labeled 'empty for 50 years'. A side readout shows the electric thrust in newtons and the burn time for 100 m/s at that thrust.
 
 Interactive:
 - variable: solar-array electrical power feeding the electric thruster
 - control: slider
-- range: P = 1 to 30 kW
-- on-screen: The electric marker visibly climbs the log-scale thrust axis in proportion to power (its plotted y-position must track the thrust readout, ~0.7 N at 10 kW to ~2 N at 30 kW), yet even at maximum power it remains far below the 100 N line and never enters the shaded high-thrust/high-Isp corner; the burn-time readout stays in the hundreds of hours.
+- range: P = 250 W to 20 kW
+- on-screen: The electric marker visibly climbs the log-scale thrust axis in proportion to power (its plotted y-position must track the thrust readout, ~17 mN at 250 W to ~1.3 N at 20 kW), yet even at maximum power it remains far below the 100 N line and never enters the shaded region; the burn-time readout for a 100 m/s maneuver never falls below ~10 hours and reads hundreds of hours at few-kilowatt power.
 
 Anchor: Hall thruster: Isp ~1,500 s at millinewton-class thrust; storable chemical: Isp 180–330 s at hundreds of newtons.
 
 Checks:
 - The electric marker's thrust scales linearly with panel power (10 kW → ~0.7 N at v_e = 15 km/s, η = 0.5).
 - The electric marker's plotted position is bound to the slider: between the default and max-power screenshots the blue dot sits at visibly different heights on the log thrust axis. Implementation requirement: recompute and redraw the dot's y-coordinate from F inside the same handler that updates the thrust readout — a dot drawn once at init is a failure.
-- At maximum slider power the electric marker remains at least 50× below the 100 N line.
+- At maximum slider power (20 kW) the electric marker reads ~1.3 N and remains at least 50× below the 100 N line.
 - The chemical marker never moves and never exceeds Isp 330 s.
-- The shaded corner contains no marker at any slider setting.
+- The shaded region is centered near Isp ≈ 500 s and thrust ≈ 100 N, does not overlap the chemical band, and contains no marker at any slider setting.
 
 ## Part: The new technology: solar-thermal propulsion
 
