@@ -2,6 +2,24 @@
 
 Hook: There are plans on file for 1.2 million satellites — eighty times as many as fly today — and every one of them will have to dodge, reposition, and come down on command. For fifty years there has been an awkward bargain in space: you could push hard and run out of propellant almost immediately, or you could sip propellant and take a year and a half to get anywhere. What we want to understand is how a mirror and a tank of one-dollar-a-kilogram ammonia gets you out of the bargain. And to understand it honestly, we have to begin at the beginning — with force, with momentum, and with what temperature really is.
 
+## Audience
+
+Background: Yale physics undergrad
+
+Assume known:
+- calculus
+- classical mechanics
+- basic thermodynamics
+- gen chem
+- linear algebra basics
+
+Do not assume:
+- graduate QFT
+- measure theory
+- domain jargon from the paper's subfield
+
+Tone: direct, quantitative, no hand-holding, no pop-science analogies unless they are load-bearing
+
 ## Part: The basic building blocks
 
 Lede: Three facts from first-year physics, then the rules of spaceflight they imply. This section ends at the fifty-year problem the paper attacks: an engine could be strong or efficient — never both.
